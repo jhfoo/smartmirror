@@ -6,6 +6,7 @@ const { start } = require('repl')
   { ServiceBroker } = require('moleculer'),
   ApiService = require('moleculer-web')
 
+var FaceMatcher = null
 
 main()
 
@@ -20,23 +21,37 @@ function startApiSvc() {
         const LocalImage = new canvas.Image()
         LocalImage.src = ctx.params.data
         console.log(`Image height x width: ${LocalImage.height}, ${LocalImage.width}`)
-        const descriptions = await detectFace(LocalImage, new faceapi.TinyFaceDetectorOptions())
+        const descriptions = await detectFaces(LocalImage, new faceapi.TinyFaceDetectorOptions())
         if (!descriptions) {
           return []
         }
 
-        const resp = descriptions.map((detection) => {
-          return {
+        const resp = descriptions.map((descriptor) => {
+          const detection = descriptor.alignedRect
+          const ret = {
             score: asDecimalPlace(detection.score, 1000),
             box: {
               x: Math.floor(detection.box.x),
               y: Math.floor(detection.box.y),
               width: Math.floor(detection.box.width),
               height: Math.floor(detection.box.height),
+            },
+            angle: {
+              roll: asDecimalPlace(descriptor.angle.roll, 1000),
+              pitch: asDecimalPlace(descriptor.angle.pitch, 1000),
+              yaw: asDecimalPlace(descriptor.angle.yaw, 1000),
             }
           }
+
+          const MatchedFace = FaceMatcher.findBestMatch(descriptor.descriptor)
+          if (MatchedFace) {
+            // console.log('Matched face')
+            // console.log(MatchedFace)
+            ret.MatchedLabel = MatchedFace.label
+          }
+
+          return ret 
         })
-        console.log(`resp: ${resp}`)
         return resp
       }
     },
@@ -86,15 +101,15 @@ async function main() {
   // await detectFace(LocalImage, new faceapi.TinyFaceDetectorOptions())
 }
 
-async function detectFace(img, FaceDetector) {
+async function detectFaces(img, FaceDetector) {
   console.log(`Face detection: detecting`)
   const StartTimer = Date.now()
-  const detections = await faceapi.detectAllFaces(img, FaceDetector)
+  const detections = await faceapi.detectAllFaces(img, FaceDetector).withFaceLandmarks().withFaceDescriptors()
   const StopTimer = Date.now()
 
   const TimeTakenSec = Math.floor((StopTimer - StartTimer)/100) / 10 
-  console.log(`Face detection: done detecting in ${TimeTakenSec} secsrs`)
-  console.log(detections)
+  console.log(`Face detection: done detecting in ${TimeTakenSec} secs`)
+  // console.log(detections)
 
   return detections
 }
@@ -107,10 +122,31 @@ async function init() {
   console.log(faceapi.nets)
 
   await loadModels('./models')
+  const LabelDescriptors = await loadTrainingSets('./training')
+  FaceMatcher = new faceapi.FaceMatcher(LabelDescriptors, 0.7)
+
+  return {
+    LabelDescriptors,
+  }
+}
+
+async function loadTrainingSets(DataPath) {
+  const labels = ['jhfoo','lisa','rlfoo','syfoo']
+  return await Promise.all(
+    labels.map(async (label) => {
+      console.log(`Loading label ${label}...`)
+      const img = await canvas.loadImage(`${DataPath}/${label}1.jpg`)
+      const description = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
+      if (description) {
+        const descriptors = [description.descriptor]
+        return new faceapi.LabeledFaceDescriptors(label, descriptors)
+      }
+    })
+  )
 }
 
 async function loadModels(ModelPath) {
-  const Models2Load = ['tinyFaceDetector', 'ssdMobilenetv1', 'faceExpressionNet']
+  const Models2Load = ['tinyFaceDetector', 'ssdMobilenetv1', 'faceRecognitionNet','faceLandmark68Net','faceLandmark68TinyNet']
 
   for (let idx = 0; idx < Models2Load.length; idx++) {
     const model = Models2Load[idx]
