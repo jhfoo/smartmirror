@@ -1,0 +1,24 @@
+{
+  "name": "nuxt-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "latest",
+    "@quasar/extras": "^1.16.7",
+    "dayjs": "^1.11.10",
+    "events": "^3.3.0",
+    "googleapis": "^126.0.1",
+    "nuxt": "^3.7.3",
+    "nuxt-quasar-ui": "^2.0.5",
+    "quasar": "^2.12.7",
+    "xml2js": "^0.6.2",
+    "xml2json": "^0.12.0"
+  }
+}
